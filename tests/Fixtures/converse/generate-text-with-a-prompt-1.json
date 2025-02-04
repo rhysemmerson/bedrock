@@ -1,0 +1,1 @@
+{"metrics":{"latencyMs":397},"output":{"message":{"content":[{"text":"I'm an AI system created by a team of inventors at Amazon. My purpose is to assist and provide information to the best of my ability. If you have any questions or need assistance, feel free to ask!"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":63,"outputTokens":44,"totalTokens":107}}

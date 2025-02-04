@@ -1,0 +1,1 @@
+{"metrics":{"latencyMs":880},"output":{"message":{"content":[{"text":"{\n    \"weather\": \"70º\",\n    \"game_time\": \"3pm\",\n    \"coat_required\": false\n}"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":223,"outputTokens":35,"totalTokens":258}}

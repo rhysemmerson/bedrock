@@ -1,0 +1,1 @@
+{"metrics":{"latencyMs":1027},"output":{"message":{"content":[{"toolUse":{"input":{"city":"New York"},"name":"weather","toolUseId":"tooluse_xV2wVESFT-SyRqBVAgijHg"}}],"role":"assistant"}},"stopReason":"tool_use","usage":{"inputTokens":499,"outputTokens":35,"totalTokens":534}}

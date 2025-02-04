@@ -1,0 +1,10 @@
+/vendor/
+composer.lock
+/build/
+task/
+.idea/
+scratch
+phpunit.xml
+.vscode
+*.code-workspace
+ray.php
