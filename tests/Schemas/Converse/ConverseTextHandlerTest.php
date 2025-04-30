@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Http;
 use Prism\Bedrock\Enums\BedrockSchema;
 use Prism\Prism\Facades\Tool;
 use Prism\Prism\Prism;
+use Prism\Prism\Testing\TextStepFake;
+use Prism\Prism\Text\ResponseBuilder;
 use Prism\Prism\ValueObjects\Messages\Support\Document;
 use Prism\Prism\ValueObjects\Messages\Support\Image;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
@@ -244,4 +246,30 @@ it('enables prompt caching if the enableCaching provider meta is set on the requ
         ->asText();
 
     Http::assertSent(fn (Request $request): bool => $request->header('explicitPromptCaching')[0] === 'enabled');
+});
+
+it('maps converse options when set with providerOptions', function (): void {
+    $fake = Prism::fake([
+        (new ResponseBuilder)->addStep(TextStepFake::make())->toResponse(),
+    ]);
+
+    $providerOptions = [
+        'additionalModelRequestFields' => [
+            'anthropic_beta' => ['output-128k-2025-02-19'],
+            'thinking' => ['type' => 'enabled', 'budget_tokens' => 16000],
+        ],
+        'additionalModelResponseFieldPaths' => ['foo.bar', 'baz.qux'],
+        'guardrailConfig' => ['rules' => ['no-violence']],
+        'performanceConfig' => ['timeoutMs' => 2000],
+        'promptVariables' => ['userName' => 'Alice'],
+        'requestMetadata' => ['requestId' => 'abc-123'],
+    ];
+
+    Prism::text()
+        ->using('bedrock', 'us.amazon.nova-micro-v1:0')
+        ->withProviderOptions($providerOptions)
+        ->withPrompt('Who are you?')
+        ->asText();
+
+    $fake->assertRequest(fn (array $requests): mixed => expect($requests[0]->providerOptions())->toBe($providerOptions));
 });

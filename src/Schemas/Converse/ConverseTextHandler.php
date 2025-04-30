@@ -84,6 +84,12 @@ class ConverseTextHandler extends BedrockTextHandler
                     'tools' => ToolMap::map($request->tools()),
                     'toolChoice' => $stepCount === 0 ? ToolChoiceMap::map($request->toolChoice()) : null,
                 ]),
+            'additionalModelRequestFields' => $request->providerOptions('additionalModelRequestFields'),
+            'additionalModelResponseFieldPaths' => $request->providerOptions('additionalModelResponseFieldPaths'),
+            'guardrailConfig' => $request->providerOptions('guardrailConfig'),
+            'performanceConfig' => $request->providerOptions('performanceConfig'),
+            'promptVariables' => $request->providerOptions('promptVariables'),
+            'requestMetadata' => $request->providerOptions('requestMetadata'),
         ]);
     }
 
