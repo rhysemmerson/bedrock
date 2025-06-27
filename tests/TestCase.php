@@ -21,7 +21,6 @@ abstract class TestCase extends BaseTestCase
             $config->set('prism.providers.bedrock', [
                 'api_key' => env('PRISM_BEDROCK_API_KEY', 'test-api-key'),
                 'api_secret' => env('PRISM_BEDROCK_API_SECRET', 'test-api-secret'),
-                'region' => env('PRISM_BEDROCK_REGION', 'us-west-2'),
             ]);
         });
     }
