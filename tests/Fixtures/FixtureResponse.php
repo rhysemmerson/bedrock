@@ -21,6 +21,59 @@ class FixtureResponse
         );
     }
 
+    public static function fakeStreamResponses(string $requestPath, string $name, array $headers = []): void
+    {
+        $basePath = dirname(static::filePath("{$name}-1.bin"));
+
+        // Find all recorded .bin files for this test
+        $files = collect(is_dir($basePath) ? scandir($basePath) : [])
+            ->filter(fn ($file): int|false => preg_match('/^'.preg_quote(basename($name), '/').'-\d+\.bin$/', $file))
+            ->map(fn ($file): string => $basePath.'/'.$file)
+            ->values()
+            ->toArray();
+
+        // If no files exist, automatically record the streaming responses
+        if (empty($files)) {
+            static::recordStreamResponses($requestPath, $name);
+
+            return;
+        }
+
+        // Sort files numerically
+        usort($files, function ($a, $b): int {
+            preg_match('/-(\d+)\.bin$/', $a, $matchesA);
+            preg_match('/-(\d+)\.bin$/', $b, $matchesB);
+
+            return (int) $matchesA[1] <=> (int) $matchesB[1];
+        });
+
+        // Create response sequence from the files
+        $responses = array_map(fn ($file) => Http::response(
+            file_get_contents($file),
+            200,
+            [
+                'Content-Type' => 'text/event-stream',
+                'Cache-Control' => 'no-cache',
+                'Connection' => 'keep-alive',
+                'Transfer-Encoding' => 'chunked',
+                ...$headers,
+            ]
+        ), $files);
+
+        if ($responses === []) {
+            $responses[] = Http::response(
+                "data: {\"error\":\"No recorded stream responses found\"}\n\ndata: [DONE]\n\n",
+                200,
+                ['Content-Type' => 'text/event-stream']
+            );
+        }
+
+        // Register the fake responses
+        Http::fake([
+            $requestPath => Http::sequence($responses),
+        ])->preventStrayRequests();
+    }
+
     public static function filePath(string $filePath): string
     {
         return sprintf('%s/%s', __DIR__, $filePath);
