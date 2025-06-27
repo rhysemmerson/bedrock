@@ -3,6 +3,7 @@
 namespace Prism\Bedrock\Schemas\Converse;
 
 use Aws\Api\Parser\DecodingEventStreamIterator;
+use Aws\Api\Parser\NonSeekableStreamDecodingEventStreamIterator;
 use Generator;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -55,6 +56,7 @@ class ConverseStreamHandler
         // dd();
         yield from $this->processStream($response, $request);
     }
+
     /**
      * @return array<string,mixed>
      */
@@ -84,7 +86,13 @@ class ConverseStreamHandler
     {
         $this->state->reset();
 
-        $decoder = new DecodingEventStreamIterator($response->getBody());
+        $stream = $response->getBody();
+
+        if ($stream->isSeekable()) {
+            $decoder = new DecodingEventStreamIterator($stream);
+        } else {
+            $decoder = new NonSeekableStreamDecodingEventStreamIterator($stream);
+        }
 
         foreach ($decoder as $chunk) {
             $chunk = $this->processChunk($chunk);
