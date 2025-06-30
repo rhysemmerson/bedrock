@@ -7,6 +7,7 @@ use Aws\Api\Parser\NonSeekableStreamDecodingEventStreamIterator;
 use Generator;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Str;
 use Prism\Bedrock\Schemas\Converse\Maps\FinishReasonMap;
 use Prism\Bedrock\ValueObjects\StreamState;
 use Prism\Prism\Concerns\CallsTools;
@@ -85,6 +86,9 @@ class ConverseStreamHandler
     protected function processStream(Response $response, Request $request, int $depth = 0)
     {
         $this->state->reset();
+
+        $this->state
+            ->setModel($request->model());
 
         $stream = $response->getBody();
 
@@ -211,7 +215,6 @@ class ConverseStreamHandler
     protected function processChunk(array $chunk)
     {
         $json = json_decode((string) $chunk['payload'], true);
-
         return match ($chunk['headers'][':event-type']) {
             'contentBlockDelta' => $this->handleContentBlockDelta($json),
             'contentBlockStart' => $this->handleContentBlockStart($json),
@@ -328,19 +331,16 @@ class ConverseStreamHandler
     {
         info('Bedrock ConverseStream: messageStart');
 
-        // $this->state
-        //     ->setModel(data_get($chunk, 'message.model', ''))
-        //     ->setRequestId(data_get($chunk, 'message.id', ''))
-        //     ->setUsage(data_get($chunk, 'message.usage', []));
+        $this->state
+            ->setRequestId(Str::uuid());
 
         return new Chunk(
             text: '',
             finishReason: null,
-            // meta: new Meta(
-            // id: $this->state->requestId(),
-            // model: $this->state->model(),
-            // rateLimits: $this->processRateLimits($response)
-            // ),
+            meta: new Meta(
+                id: $this->state->requestId(),
+                model: $this->state->model(),
+            ),
             chunkType: ChunkType::Meta
         );
     }
