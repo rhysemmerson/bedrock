@@ -14,6 +14,7 @@ use Prism\Bedrock\ValueObjects\StreamState;
 use Prism\Prism\Concerns\CallsTools;
 use Prism\Prism\Enums\ChunkType;
 use Prism\Prism\Exceptions\PrismException;
+use Prism\Prism\Exceptions\PrismRateLimitedException;
 use Prism\Prism\Text\Chunk;
 use Prism\Prism\Text\Request;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
@@ -215,14 +216,14 @@ class ConverseStreamHandler
             'contentBlockDelta' => $this->handleContentBlockDelta($json),
             'contentBlockStart' => $this->handleContentBlockStart($json),
             'contentBlockStop' => $this->handleContentBlockStop($json),
-            'internalServerException' => $this->handleInternalServerException($json),
             'messageStart' => $this->handleMessageStart($json),
             'messageStop' => $this->handleMessageStop($json),
             'metadata' => $this->handleMetadata($json),
-            'modelStreamErrorException' => $this->handleModelStreamErrorException($json),
-            'serviceUnavailableException' => $this->handleServiceUnavailableException($json),
-            'throttlingException' => $this->handleThrottlingException($json),
-            'validationException ' => $this->handleValidationException($json),
+            'internalServerException',
+            'throttlingException',
+            'modelStreamErrorException',
+            'serviceUnavailableException',
+            'validationException' => $this->handleError($json),
         };
     }
 
@@ -285,8 +286,6 @@ class ConverseStreamHandler
 
     protected function handleContentBlockStop(array $chunk): ?\Prism\Prism\Text\Chunk
     {
-        info('Bedrock ConverseStream: contentBlockStop');
-
         $blockType = $this->state->tempContentBlockType();
         $blockIndex = $this->state->tempContentBlockIndex();
 
@@ -296,9 +295,9 @@ class ConverseStreamHandler
             $toolCallData = $this->state->toolCalls()[$blockIndex];
             $input = data_get($toolCallData, 'input');
 
-            // if (is_string($input) && $this->isValidJson($input)) {
-            $input = json_decode((string) $input, true);
-            // }
+            if (is_string($input) && $this->isValidJson($input)) {
+                $input = json_decode($input, true);
+            }
 
             $toolCall = new ToolCall(
                 id: data_get($toolCallData, 'id'),
@@ -318,15 +317,8 @@ class ConverseStreamHandler
         return $chunk;
     }
 
-    protected function handleInternalServerException(array $chunk)
-    {
-        info('Bedrock ConverseStream: internalServerException');
-    }
-
     protected function handleMessageStart(array $chunk): \Prism\Prism\Text\Chunk
     {
-        info('Bedrock ConverseStream: messageStart');
-
         $this->state
             ->setRequestId(Str::uuid());
 
@@ -348,15 +340,12 @@ class ConverseStreamHandler
 
     protected function handleMetadata(array $chunk): \Prism\Prism\Text\Chunk
     {
-        info('Bedrock ConverseStream: metadata');
-
         return new Chunk(
             text: $this->state->text(),
             finishReason: FinishReasonMap::map($this->state->stopReason()),
             meta: new Meta(
                 id: $this->state->requestId(),
                 model: $this->state->model(),
-                // rateLimits: $this->processRateLimits($response)
             ),
             usage: new Usage(
                 promptTokens: data_get($chunk, 'usage.inputTokens', 0),
@@ -369,23 +358,15 @@ class ConverseStreamHandler
         );
     }
 
-    protected function handleModelStreamErrorException(array $chunk)
+    protected function handleError(array $chunk)
     {
-        info('Bedrock ConverseStream: modelStreamErrorException');
-    }
+        if ($chunk[':headers']['event-type'] === 'throttlingException') {
+            throw PrismRateLimitedException::make();
+        }
 
-    protected function handleServiceUnavailableException(array $chunk)
-    {
-        info('Bedrock ConverseStream: serviceUnavailableException');
-    }
-
-    protected function handleThrottlingException(array $chunk)
-    {
-        info('Bedrock ConverseStream: throttlingException');
-    }
-
-    protected function handleValidationException(array $chunk)
-    {
-        info('Bedrock ConverseStream: validationException');
+        throw PrismException::providerResponseError(vsprintf(
+            'Bedrock Converse Stream Error: %s',
+            $chunk[':headers']['event-type']
+        ));
     }
 }
