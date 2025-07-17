@@ -361,6 +361,8 @@ class ConverseStreamHandler
             usage: new Usage(
                 promptTokens: data_get($chunk, 'usage.inputTokens', 0),
                 completionTokens: data_get($chunk, 'usage.outputTokens', 0),
+                cacheWriteInputTokens: data_get($chunk, 'usage.cacheWriteInputTokens', 0),
+                cacheReadInputTokens: data_get($chunk, 'usage.cacheReadInputTokens', 0),
             ),
             additionalContent: $this->state->buildAdditionalContent(),
             chunkType: ChunkType::Meta
