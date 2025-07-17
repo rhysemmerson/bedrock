@@ -72,10 +72,8 @@ class ConverseStreamHandler
                     'converse-stream',
                     static::buildPayload($request)
                 );
-        } catch (RequestException $e) {
-            throw PrismException::providerRequestError($e->response->getBody()->getContents(), $e);
-        } catch (Throwable $e) {
-            throw PrismException::providerRequestError($e->getMessage(), $e);
+        } catch (RequestException|Throwable $e) {
+            throw PrismException::providerRequestError($request->model(), $e);
         }
     }
 
