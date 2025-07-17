@@ -8,6 +8,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Prism\Bedrock\Enums\BedrockSchema;
 use Prism\Prism\Enums\FinishReason;
+use Prism\Prism\Facades\Tool;
 use Prism\Prism\Prism;
 use Tests\Fixtures\FixtureResponse;
 
@@ -41,7 +42,7 @@ it('streams output', function (): void {
     expect($finalChunk->usage->cacheReadInputTokens)->toBeNull();
 
     // Verify the HTTP request
-    Http::assertSent(fn(Request $request): bool => str_ends_with($request->url(), 'converse-stream'));
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'converse-stream'));
 
     expect($text)
         ->toBe('I am an AI assistant called Claude. I was created by Anthropic to be helpful, '.
@@ -49,42 +50,40 @@ it('streams output', function (): void {
             'model trained to engage in conversation and help with tasks. How can I assist you today?');
 });
 
-// it('handles tool calls', function (): void {
+it('can handle tool calls', function (): void {
+    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-handle-tool-cals');
 
-//     $tools = [
-//         Tool::as('weather')
-//             ->for('useful when you need to search for current weather conditions')
-//             ->withStringParameter('city', 'The city that you want the weather for')
-//             ->using(fn (string $city): string => 'The weather will be 75° and sunny'),
-//         Tool::as('search')
-//             ->for('useful for searching curret events or data')
-//             ->withStringParameter('query', 'The detailed search query')
-//             ->using(fn (string $query): string => 'The tigers game is at 3pm in detroit'),
-//     ];
+    $tools = [
+        Tool::as('weather')
+            ->for('useful when you need to search for current weather conditions')
+            ->withStringParameter('city', 'The city that you want the weather for')
+            ->using(fn (string $city): string => 'The weather will be 75° and sunny'),
+        Tool::as('search')
+            ->for('useful for searching curret events or data')
+            ->withStringParameter('query', 'The detailed search query')
+            ->using(fn (string $query): string => 'The tigers game is at 3pm in detroit'),
+    ];
 
-//     $response = Prism::text()
-//         ->using('bedrock', 'apac.anthropic.claude-3-5-sonnet-20240620-v1:0')
-//         ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
-//         ->withPrompt('What is the weather like in Detroit today?')
-//         ->withMaxSteps(2)
-//         ->withTools($tools)
-//         ->asStream();
+    $response = Prism::text()
+        ->using('bedrock', 'apac.anthropic.claude-3-5-sonnet-20240620-v1:0')
+        ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
+        ->withPrompt('What is the weather like in Detroit today?')
+        ->withMaxSteps(2)
+        ->withTools($tools)
+        ->asStream();
 
-//     foreach ($response as $chunk) {
-//         echo $chunk->text;
-//         if ($chunk->toolCalls !== []) {
-//             echo "\nTool calls detected:\n";
-//             foreach ($chunk->toolCalls as $toolCall) {
-//                 echo "Tool: {$toolCall->name}\n";
-//                 echo "Parameters: " . json_encode($toolCall->arguments(), JSON_PRETTY_PRINT) . "\n";
-//             }
-//         }
-//         if ($chunk->toolResults !== []) {
-//             echo "\nTool results detected:\n";
-//             foreach ($chunk->toolResults as $toolResult) {
-//                 echo "Tool: {$toolResult->toolName}\n";
-//                 echo "Result: {$toolResult->result}\n";
-//             }
-//         }
-//     }
-// });
+    $toolCalls = [];
+    $toolResults = [];
+
+    foreach ($response as $chunk) {
+        if ($chunk->toolCalls !== []) {
+            $toolCalls[] = $chunk->toolCalls;
+        }
+        if ($chunk->toolResults !== []) {
+            $toolResults[] = $chunk->toolResults;
+        }
+    }
+
+    expect($toolCalls)->not()->toBeEmpty();
+    expect($toolResults)->not()->toBeEmpty();
+});

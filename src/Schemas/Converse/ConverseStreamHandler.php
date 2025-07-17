@@ -6,6 +6,7 @@ use Aws\Api\Parser\DecodingEventStreamIterator;
 use Aws\Api\Parser\NonSeekableStreamDecodingEventStreamIterator;
 use Generator;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Str;
 use Prism\Bedrock\Schemas\Converse\Maps\FinishReasonMap;
@@ -47,14 +48,6 @@ class ConverseStreamHandler
     {
         $response = $this->sendRequest($request);
 
-        // $file = fopen('/Users/rhysemmerson/Code/packages/bedrock/tests/Fixtures/converse/stream.json', 'w+');
-
-        // while (!$response->getBody()->eof()) {
-        //     $chunk = $response->getBody()->read(1024);
-        //     fwrite($file, $chunk);
-        // }
-        // fclose($file);
-        // dd();
         yield from $this->processStream($response, $request);
     }
 
@@ -78,8 +71,10 @@ class ConverseStreamHandler
                     'converse-stream',
                     static::buildPayload($request)
                 );
-        } catch (Throwable $e) {
+        } catch (RequestException $e) {
             throw PrismException::providerRequestError($e->response->getBody()->getContents(), $e);
+        } catch (Throwable $e) {
+            throw PrismException::providerRequestError($e->getMessage(), $e);
         }
     }
 
@@ -215,6 +210,7 @@ class ConverseStreamHandler
     protected function processChunk(array $chunk)
     {
         $json = json_decode((string) $chunk['payload'], true);
+
         return match ($chunk['headers'][':event-type']) {
             'contentBlockDelta' => $this->handleContentBlockDelta($json),
             'contentBlockStart' => $this->handleContentBlockStart($json),
