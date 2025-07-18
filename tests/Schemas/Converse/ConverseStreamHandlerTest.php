@@ -179,7 +179,7 @@ it('can call multiple tools', function (): void {
     ];
 
     $response = Prism::text()
-        ->using('bedrock', 'apac.amazon.nova-micro-v1:0')
+        ->using('bedrock', 'us.amazon.nova-micro-v1:0')
         ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
         ->withPrompt('Where is the tigers game tonight and what will the weather be like?')
         ->withMaxSteps(3)
