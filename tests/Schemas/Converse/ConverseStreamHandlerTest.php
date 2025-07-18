@@ -13,6 +13,8 @@ use Prism\Prism\Prism;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
 use Prism\Prism\ValueObjects\Messages\SystemMessage;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
+use Prism\Prism\ValueObjects\ToolCall;
+use Prism\Prism\ValueObjects\ToolResult;
 use Tests\Fixtures\FixtureResponse;
 
 it('streams output', function (): void {
@@ -88,6 +90,9 @@ it('can return usage with a basic stream', function (): void {
         'thoughtTokens' => null,
     ]);
 
+    expect($text)->not()->toBeEmpty();
+    expect($chunks)->not()->toBeEmpty();
+
     // Verify the HTTP request
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'converse-stream'));
 });
@@ -117,15 +122,118 @@ it('can handle tool calls', function (): void {
     $toolCalls = [];
     $toolResults = [];
 
+    $text = '';
+
     foreach ($response as $chunk) {
-        if ($chunk->toolCalls !== []) {
-            $toolCalls[] = $chunk->toolCalls;
-        }
-        if ($chunk->toolResults !== []) {
-            $toolResults[] = $chunk->toolResults;
-        }
+        $text .= $chunk->text;
+        $toolCalls = [...$toolCalls, ...$chunk->toolCalls];
+        $toolResults = [...$toolResults, ...$chunk->toolResults];
     }
 
-    expect($toolCalls)->not()->toBeEmpty();
-    expect($toolResults)->not()->toBeEmpty();
+    expect($text)->not()->toBeEmpty();
+    expect($toolCalls)->toHaveLength(1);
+    expect($toolResults)->toHaveLength(1);
+
+    [$toolCall] = $toolCalls;
+    [$toolResult] = $toolResults;
+
+    expect($toolCall)
+        ->toBeInstanceOf(ToolCall::class)
+        ->toHaveProperties([
+            'id' => 'tooluse_XXY4prZmT6K90Vao7_3Wsg',
+            'name' => 'weather',
+            'resultId' => null,
+            'reasoningId' => null,
+            'reasoningSummary' => null,
+        ])
+        ->and($toolCall->arguments())
+        ->toBe([
+            'city' => 'Detroit',
+        ]);
+
+    expect($toolResult)
+        ->toBeInstanceOf(ToolResult::class)
+        ->toHaveProperties([
+            'toolCallId' => 'tooluse_XXY4prZmT6K90Vao7_3Wsg',
+            'toolName' => 'weather',
+            'result' => 'The weather will be 75° and sunny',
+            'toolCallResultId' => null,
+        ]);
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'converse-stream')
+        && str_contains($request->body(), '{"text":"The weather will be 75\u00b0 and sunny"}'));
+});
+
+it('can call multiple tools', function (): void {
+    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-handle-multiple-tool-cals');
+
+    $tools = [
+        Tool::as('weather')
+            ->for('useful when you need to search for current weather conditions')
+            ->withStringParameter('city', 'The city that you want the weather for')
+            ->using(fn (string $city): string => 'The weather will be 75° and sunny'),
+        Tool::as('search')
+            ->for('useful for searching curret events or data')
+            ->withStringParameter('query', 'The detailed search query')
+            ->using(fn (string $query): string => 'The tigers game is at 3pm in detroit'),
+    ];
+
+    $response = Prism::text()
+        ->using('bedrock', 'apac.amazon.nova-micro-v1:0')
+        ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
+        ->withPrompt('Where is the tigers game tonight and what will the weather be like?')
+        ->withMaxSteps(3)
+        ->withTools($tools)
+        ->asStream();
+
+    $toolCalls = [];
+    $toolResults = [];
+
+    foreach ($response as $chunk) {
+        $toolCalls = [...$toolCalls, ...$chunk->toolCalls];
+        $toolResults = [...$toolResults, ...$chunk->toolResults];
+    }
+
+    expect($toolCalls)->toHaveLength(2);
+    expect($toolResults)->toHaveLength(2);
+
+    [$toolCall1, $toolCall2] = $toolCalls;
+    [$toolResult1, $toolResult2] = $toolResults;
+
+    expect($toolCall1)
+        ->toBeInstanceOf(ToolCall::class)
+        ->toHaveProperties([
+            'name' => 'search',
+        ])
+        ->and($toolCall1->arguments())
+        ->toBe([
+            'query' => 'Tigers game tonight schedule',
+        ]);
+    expect($toolCall2)
+        ->toBeInstanceOf(ToolCall::class)
+        ->toHaveProperties([
+            'name' => 'weather',
+        ])
+        ->and($toolCall2->arguments())
+        ->toBe([
+            'city' => 'Detroit',
+        ]);
+
+    expect($toolResult1)
+        ->toBeInstanceOf(ToolResult::class)
+        ->toHaveProperties([
+            'toolName' => 'search',
+            'result' => 'The tigers game is at 3pm in detroit',
+        ]);
+    expect($toolResult2)
+        ->toBeInstanceOf(ToolResult::class)
+        ->toHaveProperties([
+            'toolName' => 'weather',
+            'result' => 'The weather will be 75° and sunny',
+        ]);
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'converse-stream')
+        && str_contains($request->body(), '{"text":"The weather will be 75\u00b0 and sunny"}'));
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'converse-stream')
+        && str_contains($request->body(), '{"text":"The tigers game is at 3pm in detroit"}'));
 });
