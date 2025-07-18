@@ -92,43 +92,40 @@ it('can return usage with a basic stream', function (): void {
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'converse-stream'));
 });
 
-describe('tools', function (): void {
+it('can handle tool calls', function (): void {
+    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-handle-tool-cals');
 
-    it('can handle tool calls', function (): void {
-        FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-handle-tool-cals');
+    $tools = [
+        Tool::as('weather')
+            ->for('useful when you need to search for current weather conditions')
+            ->withStringParameter('city', 'The city that you want the weather for')
+            ->using(fn (string $city): string => 'The weather will be 75° and sunny'),
+        Tool::as('search')
+            ->for('useful for searching curret events or data')
+            ->withStringParameter('query', 'The detailed search query')
+            ->using(fn (string $query): string => 'The tigers game is at 3pm in detroit'),
+    ];
 
-        $tools = [
-            Tool::as('weather')
-                ->for('useful when you need to search for current weather conditions')
-                ->withStringParameter('city', 'The city that you want the weather for')
-                ->using(fn (string $city): string => 'The weather will be 75° and sunny'),
-            Tool::as('search')
-                ->for('useful for searching curret events or data')
-                ->withStringParameter('query', 'The detailed search query')
-                ->using(fn (string $query): string => 'The tigers game is at 3pm in detroit'),
-        ];
+    $response = Prism::text()
+        ->using('bedrock', 'us.amazon.nova-micro-v1:0')
+        ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
+        ->withPrompt('What is the weather like in Detroit today?')
+        ->withMaxSteps(2)
+        ->withTools($tools)
+        ->asStream();
 
-        $response = Prism::text()
-            ->using('bedrock', 'us.amazon.nova-micro-v1:0')
-            ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
-            ->withPrompt('What is the weather like in Detroit today?')
-            ->withMaxSteps(2)
-            ->withTools($tools)
-            ->asStream();
+    $toolCalls = [];
+    $toolResults = [];
 
-        $toolCalls = [];
-        $toolResults = [];
-
-        foreach ($response as $chunk) {
-            if ($chunk->toolCalls !== []) {
-                $toolCalls[] = $chunk->toolCalls;
-            }
-            if ($chunk->toolResults !== []) {
-                $toolResults[] = $chunk->toolResults;
-            }
+    foreach ($response as $chunk) {
+        if ($chunk->toolCalls !== []) {
+            $toolCalls[] = $chunk->toolCalls;
         }
+        if ($chunk->toolResults !== []) {
+            $toolResults[] = $chunk->toolResults;
+        }
+    }
 
-        expect($toolCalls)->not()->toBeEmpty();
-        expect($toolResults)->not()->toBeEmpty();
-    });
+    expect($toolCalls)->not()->toBeEmpty();
+    expect($toolResults)->not()->toBeEmpty();
 });
