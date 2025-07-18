@@ -24,9 +24,9 @@ class FixtureResponse
 
     public static function fakeStreamResponses(string $requestPath, string $name, array $headers = []): void
     {
-        $basePath = dirname(static::filePath("{$name}-1.bin"));
+        $basePath = dirname(static::filePath("{$name}-1.sse"));
 
-        // Find all recorded .bin files for this test
+        // Find all recorded .sse files for this test
         $files = collect(is_dir($basePath) ? scandir($basePath) : [])
             ->filter(fn ($file): int|false => preg_match('/^'.preg_quote(basename($name), '/').'-\d+\.sse$/', $file))
             ->map(fn ($file): string => $basePath.'/'.$file)
