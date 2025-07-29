@@ -8,6 +8,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Prism\Bedrock\Enums\BedrockSchema;
 use Prism\Prism\Enums\FinishReason;
+use Prism\Prism\Exceptions\PrismException;
 use Prism\Prism\Facades\Tool;
 use Prism\Prism\Prism;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
@@ -237,3 +238,26 @@ it('can call multiple tools', function (): void {
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'converse-stream')
         && str_contains($request->body(), '{"text":"The tigers game is at 3pm in detroit"}'));
 });
+
+it('can handle stream exceptions', function (): void {
+    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-handle-exceptions');
+
+    $tools = [
+        Tool::as('determine-weather')
+            ->for('Returns a list of weather conditions')
+            ->withStringParameter('city', 'The city that you want the weather for')
+            ->using(fn (...$args): string => 'The weather will be 75° and sunny'),
+    ];
+
+    $response = Prism::text()
+        ->using('bedrock', 'amazon.nova-micro-v1:0')
+        ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
+        ->withPrompt('What is the weather like in Detroit today?')
+        ->withMaxSteps(3)
+        ->withTools($tools)
+        ->asStream();
+
+    iterator_to_array($response, false);
+})->throws(PrismException::class, 'Bedrock Converse Stream Error (modelStreamErrorException): {"message":'.
+                                    '"Model produced invalid sequence as part of ToolUse. Please refer '.
+                                    'to the model tool use troubleshooting guide."}');

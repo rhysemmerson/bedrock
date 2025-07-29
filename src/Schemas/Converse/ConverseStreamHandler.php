@@ -208,6 +208,15 @@ class ConverseStreamHandler
 
     protected function processChunk(array $chunk)
     {
+        return match ($chunk['headers'][':message-type']) {
+            'event' => $this->processEvent($chunk),
+            'exception' => $this->handleStreamException($chunk),
+            'error' => $this->handleStreamError($chunk),
+        };
+    }
+
+    protected function processEvent(array $chunk)
+    {
         $json = json_decode((string) $chunk['payload'], true);
 
         return match ($chunk['headers'][':event-type']) {
@@ -217,11 +226,6 @@ class ConverseStreamHandler
             'messageStart' => $this->handleMessageStart($json),
             'messageStop' => $this->handleMessageStop($json),
             'metadata' => $this->handleMetadata($json),
-            'internalServerException',
-            'throttlingException',
-            'modelStreamErrorException',
-            'serviceUnavailableException',
-            'validationException' => $this->handleError($json),
         };
     }
 
@@ -356,15 +360,33 @@ class ConverseStreamHandler
         );
     }
 
-    protected function handleError(array $chunk)
+    /**
+     * @throws PrismRateLimitedException
+     * @throws PrismException
+     */
+    protected function handleStreamException(array $chunk)
     {
-        if ($chunk[':headers']['event-type'] === 'throttlingException') {
+        if ($chunk['headers'][':exception-type'] === 'throttlingException') {
             throw PrismRateLimitedException::make();
         }
 
         throw PrismException::providerResponseError(vsprintf(
-            'Bedrock Converse Stream Error: %s',
-            $chunk[':headers']['event-type']
+            'Bedrock Converse Stream Error (%s): %s',
+            [
+                $chunk['headers'][':exception-type'],
+                $chunk['payload'],
+            ]
+        ));
+    }
+
+    /**
+     * @throws PrismException
+     */
+    protected function handleStreamError(array $chunk): never
+    {
+        throw PrismException::providerResponseError(vsprintf(
+            'Bedrock Converse Stream Error (%s): %s',
+            $chunk['headers'][':error-code']
         ));
     }
 }
