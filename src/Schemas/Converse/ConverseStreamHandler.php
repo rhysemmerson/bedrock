@@ -386,7 +386,10 @@ class ConverseStreamHandler
     {
         throw PrismException::providerResponseError(vsprintf(
             'Bedrock Converse Stream Error (%s): %s',
-            $chunk['headers'][':error-code']
+            [
+                $chunk['headers'][':error-code'],
+                $chunk['headers'][':error-message'],
+            ]
         ));
     }
 }
