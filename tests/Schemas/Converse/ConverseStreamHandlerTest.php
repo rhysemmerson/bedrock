@@ -250,7 +250,7 @@ it('can handle stream exceptions', function (): void {
     ];
 
     $response = Prism::text()
-        ->using('bedrock', 'amazon.nova-micro-v1:0')
+        ->using('bedrock', 'us.amazon.nova-micro-v1:0')
         ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
         ->withPrompt('What is the weather like in Detroit today?')
         ->withMaxSteps(3)
