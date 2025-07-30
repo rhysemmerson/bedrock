@@ -13,6 +13,7 @@ use Prism\Bedrock\Schemas\Converse\Maps\FinishReasonMap;
 use Prism\Bedrock\ValueObjects\StreamState;
 use Prism\Prism\Concerns\CallsTools;
 use Prism\Prism\Enums\ChunkType;
+use Prism\Prism\Exceptions\PrismChunkDecodeException;
 use Prism\Prism\Exceptions\PrismException;
 use Prism\Prism\Exceptions\PrismRateLimitedException;
 use Prism\Prism\Text\Chunk;
@@ -77,7 +78,7 @@ class ConverseStreamHandler
         }
     }
 
-    protected function processStream(Response $response, Request $request, int $depth = 0)
+    protected function processStream(Response $response, Request $request, int $depth = 0): Generator
     {
         $this->state->reset();
 
@@ -94,7 +95,7 @@ class ConverseStreamHandler
 
         foreach ($decoder as $chunk) {
             $chunk = $this->processChunk($chunk);
-            if ($chunk) {
+            if ($chunk instanceof \Prism\Prism\Text\Chunk) {
                 yield $chunk;
             }
         }
@@ -104,6 +105,10 @@ class ConverseStreamHandler
         }
     }
 
+    /**
+     * @param  array<int, ToolCall>  $toolCalls
+     * @param  array<string, mixed>|null  $additionalContent
+     */
     protected function handleToolCalls(Request $request, array $toolCalls, int $depth, ?array $additionalContent = null): Generator
     {
         $toolResults = [];
@@ -206,30 +211,72 @@ class ConverseStreamHandler
         }
     }
 
-    protected function processChunk(array $chunk)
+    /**
+     * @param  array<string, mixed>  $chunk
+     * @return 'event'|'exception'|'error'|'unknown'
+     */
+    protected function getMessagetype(array $chunk): string
     {
-        return match ($chunk['headers'][':message-type']) {
+        return match (data_get($chunk, ['headers', ':message-type'])) {
+            'event' => 'event',
+            'exception' => 'exception',
+            'error' => 'error',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $chunk
+     * @return 'contentBlockDelta'|'contentBlockStart'|'contentBlockStop'|'messageStart'|'messageStop'|'metadata'|'unknown'
+     */
+    protected function getEventType(array $chunk): string
+    {
+        return match (data_get($chunk, ['headers', ':event-type'])) {
+            'contentBlockDelta' => 'contentBlockDelta',
+            'contentBlockStart' => 'contentBlockStart',
+            'contentBlockStop' => 'contentBlockStop',
+            'messageStart' => 'messageStart',
+            'messageStop' => 'messageStop',
+            'metadata' => 'metadata',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $chunk
+     */
+    protected function processChunk(array $chunk): ?Chunk
+    {
+        return match ($this->getMessagetype($chunk)) {
             'event' => $this->processEvent($chunk),
             'exception' => $this->handleStreamException($chunk),
             'error' => $this->handleStreamError($chunk),
+            'unknown' => null,
         };
     }
 
-    protected function processEvent(array $chunk)
+    /**
+     * @param  array<string, mixed>  $chunk
+     */
+    protected function processEvent(array $chunk): ?Chunk
     {
         $json = json_decode((string) $chunk['payload'], true);
 
-        return match ($chunk['headers'][':event-type']) {
+        return match ($this->getEventType($chunk)) {
             'contentBlockDelta' => $this->handleContentBlockDelta($json),
             'contentBlockStart' => $this->handleContentBlockStart($json),
-            'contentBlockStop' => $this->handleContentBlockStop($json),
-            'messageStart' => $this->handleMessageStart($json),
+            'contentBlockStop' => $this->handleContentBlockStop(),
+            'messageStart' => $this->handleMessageStart(),
             'messageStop' => $this->handleMessageStop($json),
             'metadata' => $this->handleMetadata($json),
+            'unknown' => null,
         };
     }
 
-    protected function handleContentBlockDelta(array $chunk): ?\Prism\Prism\Text\Chunk
+    /**
+     * @param  array<string, mixed>  $chunk
+     */
+    protected function handleContentBlockDelta(array $chunk): ?Chunk
     {
         if ($text = data_get($chunk, 'delta.text')) {
             return new Chunk(
@@ -248,6 +295,9 @@ class ConverseStreamHandler
         return null;
     }
 
+    /**
+     * @param  array<string, mixed>  $chunk
+     */
     protected function handleContentBlockStart(array $chunk): null
     {
         $blockType = (bool) data_get($chunk, 'start.toolUse')
@@ -271,7 +321,7 @@ class ConverseStreamHandler
     }
 
     /**
-     * @param  array<string, mixed>  $chunk
+     * @param  array<string, string>  $toolUse
      */
     protected function handleToolUseBlockDelta(array $toolUse): ?Chunk
     {
@@ -286,7 +336,7 @@ class ConverseStreamHandler
         return null;
     }
 
-    protected function handleContentBlockStop(array $chunk): ?\Prism\Prism\Text\Chunk
+    protected function handleContentBlockStop(): ?Chunk
     {
         $blockType = $this->state->tempContentBlockType();
         $blockIndex = $this->state->tempContentBlockIndex();
@@ -319,7 +369,7 @@ class ConverseStreamHandler
         return $chunk;
     }
 
-    protected function handleMessageStart(array $chunk): \Prism\Prism\Text\Chunk
+    protected function handleMessageStart(): Chunk
     {
         $this->state
             ->setRequestId(Str::uuid());
@@ -335,12 +385,20 @@ class ConverseStreamHandler
         );
     }
 
-    protected function handleMessageStop(array $chunk)
+    /**
+     * @param  array<string, mixed>  $chunk
+     */
+    protected function handleMessageStop(array $chunk): null
     {
         $this->state->setStopReason(data_get($chunk, 'stopReason'));
+
+        return null;
     }
 
-    protected function handleMetadata(array $chunk): \Prism\Prism\Text\Chunk
+    /**
+     * @param  array<string, mixed>  $chunk
+     */
+    protected function handleMetadata(array $chunk): Chunk
     {
         return new Chunk(
             text: $this->state->text(),
@@ -361,10 +419,12 @@ class ConverseStreamHandler
     }
 
     /**
+     * @param  array<string, mixed>  $chunk
+     *
      * @throws PrismRateLimitedException
      * @throws PrismException
      */
-    protected function handleStreamException(array $chunk)
+    protected function handleStreamException(array $chunk): never
     {
         if ($chunk['headers'][':exception-type'] === 'throttlingException') {
             throw PrismRateLimitedException::make();
@@ -380,6 +440,8 @@ class ConverseStreamHandler
     }
 
     /**
+     * @param  array<string, mixed>  $chunk
+     *
      * @throws PrismException
      */
     protected function handleStreamError(array $chunk): never
