@@ -36,14 +36,13 @@ class ReorderMethodsRector extends AbstractRector
         }
 
         $node->stmts = array_merge(
-            array_filter($node->stmts, fn ($stmt): bool => ! $stmt instanceof ClassMethod),
+            array_filter($node->stmts, fn (\PhpParser\Node\Stmt $stmt): bool => ! $stmt instanceof ClassMethod),
             $reorderedMethods
         );
 
         return $node;
     }
 
-    #[\Override]
     public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition(

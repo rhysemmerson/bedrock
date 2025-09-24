@@ -11,8 +11,8 @@ use Prism\Prism\Facades\Tool;
 use Prism\Prism\Prism;
 use Prism\Prism\Testing\TextStepFake;
 use Prism\Prism\Text\ResponseBuilder;
-use Prism\Prism\ValueObjects\Messages\Support\Document;
-use Prism\Prism\ValueObjects\Messages\Support\Image;
+use Prism\Prism\ValueObjects\Media\Document;
+use Prism\Prism\ValueObjects\Media\Image;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
 use Tests\Fixtures\FixtureResponse;
 
@@ -283,7 +283,7 @@ it('does not remove zero values from payload', function (): void {
         ->usingTemperature(0)
         ->asText();
 
-    Http::assertSent(fn (Request $request): \Pest\Mixins\Expectation|\Pest\Expectation => expect($request->data())->toMatchArray([
+    Http::assertSent(fn (Request $request): \Pest\Mixins\Expectation => expect($request->data())->toMatchArray([
         'inferenceConfig' => [
             'temperature' => 0,
             'maxTokens' => 2048,
