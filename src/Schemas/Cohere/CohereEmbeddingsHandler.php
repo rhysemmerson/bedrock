@@ -3,6 +3,7 @@
 namespace Prism\Bedrock\Schemas\Cohere;
 
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Arr;
 use Prism\Bedrock\Contracts\BedrockEmbeddingsHandler;
 use Prism\Prism\Embeddings\Request;
 use Prism\Prism\Embeddings\Response as EmbeddingsResponse;
@@ -39,9 +40,15 @@ class CohereEmbeddingsHandler extends BedrockEmbeddingsHandler
     {
         return array_filter([
             'texts' => $request->inputs(),
-            'input_type' => 'search_document', // TODO: Need to PR providerOptions onto embeddings request to allow override.
-            'truncate' => null, // TODO: Need to PR providerOptions onto embeddings request to allow override. Default for now.
-            'embedding_types' => null, // TODO: Need to PR providerOptions onto embeddings request to allow override. Default for now.
+            'input_type' => 'search_document',
+            'truncate' => null,
+            'embedding_types' => null,
+            ...Arr::only($request->providerOptions(), [
+                'input_type',
+                'embedding_types',
+                'truncate',
+                'output_dimension',
+            ]),
         ]);
     }
 
