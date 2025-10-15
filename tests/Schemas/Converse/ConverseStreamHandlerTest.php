@@ -9,10 +9,13 @@ use Illuminate\Support\Facades\Http;
 use NumberFormatter;
 use Prism\Bedrock\Enums\BedrockSchema;
 use Prism\Prism\Enums\FinishReason;
+use Prism\Prism\Enums\StreamEventType;
 use Prism\Prism\Facades\Tool;
 use Prism\Prism\Prism;
 use Prism\Prism\Streaming\Events\StreamEndEvent;
+use Prism\Prism\Streaming\Events\StreamEvent;
 use Prism\Prism\Streaming\Events\TextDeltaEvent;
+use Prism\Prism\Streaming\Events\ThinkingEvent;
 use Prism\Prism\Streaming\Events\ToolCallEvent;
 use Prism\Prism\Streaming\Events\ToolResultEvent;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
@@ -123,7 +126,7 @@ it('can handle tool calls', function (): void {
         ->withTools($tools)
         ->asStream();
 
-    $toolCalls = [];
+    $toolCallFound = false;
     $toolResults = [];
     $events = [];
     $text = '';
@@ -162,3 +165,40 @@ it('can handle tool calls', function (): void {
             && isset($body['toolConfig']);
     });
 });
+
+it('can handle thinking', function (): void {
+    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-thinking-1');
+
+    $response = Prism::text()
+        ->using('bedrock', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
+        ->withProviderOptions([
+            'apiSchema' => BedrockSchema::Converse,
+            'additionalModelRequestFields' => [
+                'thinking' => [
+                    'type' => 'enabled',
+                    'budget_tokens' => 1024,
+                ],
+            ],
+            'inferenceConfig' => [
+                'maxTokens' => 5000,
+            ],
+        ])
+        ->withPrompt('Who are you?')
+        ->asStream();
+
+    $events = collect($response);
+
+    $thinkingDeltas = $events->where(
+        fn (StreamEvent $event): bool => $event->type() === StreamEventType::ThinkingDelta
+    );
+
+    $thinkingDeltas
+        ->each(function (StreamEvent $event): void {
+            expect($event)->toBeInstanceOf(ThinkingEvent::class);
+        });
+
+    expect($thinkingDeltas->count())->toBeGreaterThan(5);
+
+    expect($thinkingDeltas->first()->delta)->not->toBeEmpty();
+
+})->only();

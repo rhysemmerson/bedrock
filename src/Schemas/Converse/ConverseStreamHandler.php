@@ -69,16 +69,12 @@ class ConverseStreamHandler
 
     protected function sendRequest(Request $request): Response
     {
-        try {
-            return $this->client
-                ->withOptions(['stream' => true])
-                ->post(
-                    'converse-stream',
-                    static::buildPayload($request)
-                );
-        } catch (RequestException|Throwable $e) {
-            throw PrismException::providerRequestError($request->model(), $e);
-        }
+        return $this->client
+            ->withOptions(['stream' => true])
+            ->post(
+                'converse-stream',
+                static::buildPayload($request)
+            );
     }
 
     protected function processStream(Response $response, Request $request, int $depth = 0)
@@ -379,7 +375,22 @@ class ConverseStreamHandler
 
     protected function handleReasoningContentDelta(array $reasoningContent): ?ThinkingEvent
     {
-        throw new \RuntimeException('Reasoning content not yet supported in Bedrock Converse');
+        $thinking = $reasoningContent['text'] ?? '';
+
+        if ($thinking === '') {
+            return null;
+        }
+
+        $this->state->appendThinking($thinking);
+
+        $this->state->withReasoningId(EventID::generate());
+
+        return new ThinkingEvent(
+            id: EventID::generate(),
+            timestamp: time(),
+            delta: $thinking,
+            reasoningId: $this->state->reasoningId()
+        );
     }
 
     /**
