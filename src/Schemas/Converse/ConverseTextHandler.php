@@ -5,6 +5,7 @@ namespace Prism\Bedrock\Schemas\Converse;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Prism\Bedrock\Contracts\BedrockTextHandler;
+use Prism\Bedrock\Schemas\Converse\Concerns\ExtractsText;
 use Prism\Bedrock\Schemas\Converse\Concerns\ExtractsToolCalls;
 use Prism\Bedrock\Schemas\Converse\Maps\FinishReasonMap;
 use Prism\Bedrock\Schemas\Converse\Maps\MessageMap;
@@ -26,7 +27,7 @@ use Throwable;
 
 class ConverseTextHandler extends BedrockTextHandler
 {
-    use CallsTools, ExtractsToolCalls;
+    use CallsTools, ExtractsText, ExtractsToolCalls;
 
     protected TextResponse $tempResponse;
 
@@ -59,7 +60,7 @@ class ConverseTextHandler extends BedrockTextHandler
         return match ($this->tempResponse->finishReason) {
             FinishReason::ToolCalls => $this->handleToolCalls($request),
             FinishReason::Stop, FinishReason::Length => $this->handleStop($request),
-            default => throw new PrismException('Anthropic: unknown finish reason'),
+            default => throw new PrismException('Converse: unknown finish reason'),
         };
     }
 
@@ -109,7 +110,7 @@ class ConverseTextHandler extends BedrockTextHandler
 
         $this->tempResponse = new TextResponse(
             steps: new Collection,
-            text: data_get($data, 'output.message.content.0.text', ''),
+            text: $this->extractText($data),
             finishReason: FinishReasonMap::map(data_get($data, 'stopReason')),
             toolCalls: $this->extractToolCalls($data),
             toolResults: [],
@@ -117,8 +118,8 @@ class ConverseTextHandler extends BedrockTextHandler
                 promptTokens: data_get($data, 'usage.inputTokens'),
                 completionTokens: data_get($data, 'usage.outputTokens')
             ),
-            meta: new Meta(id: '', model: ''), // Not provided in Converse response.
-            messages: new Collection
+            meta: new Meta(id: '', model: ''),
+            messages: new Collection, // Not provided in Converse response.
         );
     }
 

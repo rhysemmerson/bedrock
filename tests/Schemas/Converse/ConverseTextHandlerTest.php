@@ -33,6 +33,21 @@ it('can generate text with a prompt', function (): void {
     expect($response->text)->toBe("I'm an AI system created by a team of inventors at Amazon. My purpose is to assist and provide information to the best of my ability. If you have any questions or need assistance, feel free to ask!");
 });
 
+it('can generate text with reasoning content', function (): void {
+    FixtureResponse::fakeResponseSequence('converse', 'converse/generate-text-with-reasoning-content');
+
+    $response = Prism::text()
+        ->using('bedrock', 'openai.gpt-oss-120b-1:0')
+        ->withPrompt('Tell me a short story about a brave knight.')
+        ->asText();
+
+    expect($response->usage->promptTokens)
+        ->toBe(21)
+        ->and($response->usage->completionTokens)->toBe(765)
+        ->and($response->text)->toContain('In the mist‑shrouded kingdom of Eldoria')
+        ->and($response->text)->toContain('Sir Alden\'s legend endured');
+});
+
 it('can generate text with a system prompt', function (): void {
     FixtureResponse::fakeResponseSequence('converse', 'converse/generate-text-with-system-prompt');
 
@@ -283,10 +298,14 @@ it('does not remove zero values from payload', function (): void {
         ->usingTemperature(0)
         ->asText();
 
-    Http::assertSent(fn (Request $request): \Pest\Mixins\Expectation|\Pest\Expectation => expect($request->data())->toMatchArray([
-        'inferenceConfig' => [
-            'temperature' => 0,
-            'maxTokens' => 2048,
-        ],
-    ]));
+    Http::assertSent(function (Request $request): bool {
+        expect($request->data())->toMatchArray([
+            'inferenceConfig' => [
+                'temperature' => 0,
+                'maxTokens' => 2048,
+            ],
+        ]);
+
+        return true;
+    });
 });
