@@ -15,6 +15,7 @@ use Prism\Prism\Prism;
 use Prism\Prism\Streaming\Events\StreamEndEvent;
 use Prism\Prism\Streaming\Events\StreamEvent;
 use Prism\Prism\Streaming\Events\TextDeltaEvent;
+use Prism\Prism\Streaming\Events\ThinkingCompleteEvent;
 use Prism\Prism\Streaming\Events\ThinkingEvent;
 use Prism\Prism\Streaming\Events\ThinkingStartEvent;
 use Prism\Prism\Streaming\Events\ToolCallEvent;
@@ -207,4 +208,4 @@ it('can handle thinking', function (): void {
 
     expect($events->where(fn ($event): bool => $event->type() === StreamEventType::ThinkingComplete)->sole())
         ->toBeInstanceOf(ThinkingCompleteEvent::class);
-})->only();
+});

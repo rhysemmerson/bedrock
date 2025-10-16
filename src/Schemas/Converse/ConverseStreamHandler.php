@@ -6,7 +6,6 @@ use Aws\Api\Parser\DecodingEventStreamIterator;
 use Aws\Api\Parser\NonSeekableStreamDecodingEventStreamIterator;
 use Generator;
 use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Prism\Bedrock\Bedrock;
 use Prism\Bedrock\Schemas\Converse\Maps\FinishReasonMap;
@@ -22,7 +21,9 @@ use Prism\Prism\Streaming\Events\StreamStartEvent;
 use Prism\Prism\Streaming\Events\TextCompleteEvent;
 use Prism\Prism\Streaming\Events\TextDeltaEvent;
 use Prism\Prism\Streaming\Events\TextStartEvent;
+use Prism\Prism\Streaming\Events\ThinkingCompleteEvent;
 use Prism\Prism\Streaming\Events\ThinkingEvent;
+use Prism\Prism\Streaming\Events\ThinkingStartEvent;
 use Prism\Prism\Streaming\Events\ToolCallEvent;
 use Prism\Prism\Streaming\Events\ToolResultEvent;
 use Prism\Prism\Text\Request;
@@ -93,9 +94,12 @@ class ConverseStreamHandler
         }
 
         foreach ($decoder as $event) {
-            $event = $this->processEvent($event);
-            if ($event instanceof \Prism\Prism\Streaming\Events\StreamEvent) {
-                yield $event;
+            $streamEvent = $this->processEvent($event);
+
+            if ($streamEvent instanceof Generator) {
+                yield from $streamEvent;
+            } elseif ($streamEvent instanceof StreamEvent) {
+                yield $streamEvent;
             }
         }
 
@@ -209,7 +213,7 @@ class ConverseStreamHandler
         }
     }
 
-    protected function processEvent(array $event): ?StreamEvent
+    protected function processEvent(array $event): null|StreamEvent|Generator
     {
         $json = json_decode((string) $event['payload'], true);
 
@@ -254,7 +258,7 @@ class ConverseStreamHandler
         );
     }
 
-    protected function handleContentBlockDelta(array $event): ?StreamEvent
+    protected function handleContentBlockDelta(array $event): null|StreamEvent|Generator
     {
         $this->state->withBlockIndex($event['contentBlockIndex']);
         $delta = $event['delta'];
@@ -277,6 +281,11 @@ class ConverseStreamHandler
                 messageId: $this->state->messageId()
             ),
             'tool_use' => $this->handleToolUseComplete(),
+            'thinking' => new ThinkingCompleteEvent(
+                id: EventID::generate(),
+                timestamp: time(),
+                reasoningId: $this->state->reasoningId()
+            ),
             default => null,
         };
 
@@ -373,7 +382,7 @@ class ConverseStreamHandler
         throw new \RuntimeException('Citations not yet supported in Bedrock Converse');
     }
 
-    protected function handleReasoningContentDelta(array $reasoningContent): ?ThinkingEvent
+    protected function handleReasoningContentDelta(array $reasoningContent): Generator
     {
         $thinking = $reasoningContent['text'] ?? '';
 
@@ -381,11 +390,21 @@ class ConverseStreamHandler
             return null;
         }
 
+        $this->state->withBlockType('thinking');
+
+        if ($this->state->reasoningId() === '' || $this->state->reasoningId() === '0') {
+            $this->state->withReasoningId(EventID::generate());
+
+            yield new ThinkingStartEvent(
+                id: EventID::generate(),
+                timestamp: time(),
+                reasoningId: $this->state->reasoningId()
+            );
+        }
+
         $this->state->appendThinking($thinking);
 
-        $this->state->withReasoningId(EventID::generate());
-
-        return new ThinkingEvent(
+        yield new ThinkingEvent(
             id: EventID::generate(),
             timestamp: time(),
             delta: $thinking,
