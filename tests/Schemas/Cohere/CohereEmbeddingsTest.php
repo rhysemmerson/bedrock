@@ -85,7 +85,7 @@ it('can set request params', function (): void {
     $embeddings = json_decode(file_get_contents('tests/Fixtures/cohere/generate-embeddings-from-input-1.json'), true);
     $embeddings = array_map(fn (array $item): Embedding => Embedding::fromArray($item), data_get($embeddings, 'embeddings'));
 
-    Http::assertSent(function ($request) {
+    Http::assertSent(function ($request): bool {
         $body = $request->data();
 
         return $body['input_type'] === 'search_query'
