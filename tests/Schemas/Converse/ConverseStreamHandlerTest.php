@@ -16,6 +16,7 @@ use Prism\Prism\Streaming\Events\StreamEndEvent;
 use Prism\Prism\Streaming\Events\StreamEvent;
 use Prism\Prism\Streaming\Events\TextDeltaEvent;
 use Prism\Prism\Streaming\Events\ThinkingEvent;
+use Prism\Prism\Streaming\Events\ThinkingStartEvent;
 use Prism\Prism\Streaming\Events\ToolCallEvent;
 use Prism\Prism\Streaming\Events\ToolResultEvent;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
@@ -188,6 +189,9 @@ it('can handle thinking', function (): void {
 
     $events = collect($response);
 
+    expect($events->where(fn ($event): bool => $event->type() === StreamEventType::ThinkingStart)->sole())
+        ->toBeInstanceOf(ThinkingStartEvent::class);
+
     $thinkingDeltas = $events->where(
         fn (StreamEvent $event): bool => $event->type() === StreamEventType::ThinkingDelta
     );
@@ -201,4 +205,6 @@ it('can handle thinking', function (): void {
 
     expect($thinkingDeltas->first()->delta)->not->toBeEmpty();
 
+    expect($events->where(fn ($event): bool => $event->type() === StreamEventType::ThinkingComplete)->sole())
+        ->toBeInstanceOf(ThinkingCompleteEvent::class);
 })->only();
