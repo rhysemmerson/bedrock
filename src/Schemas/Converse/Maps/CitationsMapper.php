@@ -5,9 +5,27 @@ namespace Prism\Bedrock\Schemas\Converse\Maps;
 use Prism\Prism\Enums\Citations\CitationSourcePositionType;
 use Prism\Prism\Enums\Citations\CitationSourceType;
 use Prism\Prism\ValueObjects\Citation;
+use Prism\Prism\ValueObjects\MessagePartWithCitations;
 
 class CitationsMapper
 {
+    public static function mapFromConverse(array $contentBlock): ?MessagePartWithCitations
+    {
+        if (! isset($contentBlock['citationsContent']['citations'])) {
+            return null;
+        }
+
+        $citations = array_map(
+            fn (array $citationData): Citation => self::mapCitationFromConverse($citationData),
+            $contentBlock['citationsContent']['citations']
+        );
+
+        return new MessagePartWithCitations(
+            outputText: $contentBlock['text'] ?? '',
+            citations: $citations,
+        );
+    }
+
     public static function mapCitationFromConverse(array $citationData): Citation
     {
         $location = $citationData['location'] ?? [];
@@ -16,13 +34,26 @@ class CitationsMapper
 
         return new Citation(
             sourceType: CitationSourceType::Document,
-            source: $indices['documentIndex'] ?? null,
+            source: $indices['documentIndex'] ?? 0,
             sourceText: self::mapSourceText($citationData['sourceContent'] ?? []),
             sourceTitle: $citationData['title'] ?? '',
             sourcePositionType: self::mapSourcePositionType($location),
             sourceStartIndex: $indices['start'] ?? null,
             sourceEndIndex: $indices['end'] ?? null,
         );
+    }
+    public static function mapToConverse(MessagePartWithCitations $part): array
+    {
+        $citations = array_map(
+            fn (Citation $citation): array => self::mapCitationToConverse($citation),
+            $part->citations
+        );
+
+        return [
+            'citationsContent' => [
+                'citations' => array_filter($citations),
+            ],
+        ];
     }
 
     protected static function mapSourceText(array $citationData): ?string
@@ -41,5 +72,31 @@ class CitationsMapper
             'documentPage' => CitationSourcePositionType::Page,
             default => null,
         };
+    }
+
+    private static function mapCitationToConverse(Citation $citation): array
+    {
+        $locationKey = match ($citation->sourcePositionType) {
+            CitationSourcePositionType::Character => 'documentChar',
+            CitationSourcePositionType::Chunk => 'documentChunk',
+            CitationSourcePositionType::Page => 'documentPage',
+            default => null,
+        };
+
+        $location = $locationKey ? [
+            $locationKey => array_filter([
+                'documentIndex' => $citation->source,
+                'start' => $citation->sourceStartIndex,
+                'end' => $citation->sourceEndIndex,
+            ]),
+        ] : [];
+
+        return array_filter([
+            'location' => $location,
+            'sourceContent' => $citation->sourceText ? [
+                ['text' => $citation->sourceText],
+            ] : null,
+            'title' => $citation->sourceTitle ?: null,
+        ]);
     }
 }

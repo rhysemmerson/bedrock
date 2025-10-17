@@ -9,6 +9,7 @@ use Prism\Prism\Contracts\Message;
 use Prism\Prism\Exceptions\PrismException;
 use Prism\Prism\ValueObjects\Media\Document;
 use Prism\Prism\ValueObjects\Media\Image;
+use Prism\Prism\ValueObjects\MessagePartWithCitations;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
 use Prism\Prism\ValueObjects\Messages\SystemMessage;
 use Prism\Prism\ValueObjects\Messages\ToolResultMessage;
@@ -128,6 +129,7 @@ class MessageMap
             'content' => array_values(array_filter([
                 $message->content === '' || $message->content === '0' ? null : ['text' => $message->content],
                 ...self::mapToolCalls($message->toolCalls),
+                ...self::mapCitations($message->additionalContent['citations'] ?? []),
                 $cacheType ? ['cachePoint' => ['type' => $cacheType]] : null,
             ])),
         ];
@@ -146,6 +148,14 @@ class MessageMap
                 'input' => $toolCall->arguments(),
             ],
         ], $parts);
+    }
+
+    protected static function mapCitations(array $parts): array
+    {
+        return array_map(
+            fn (MessagePartWithCitations $part): array => CitationsMapper::mapToConverse($part),
+            $parts
+        );
     }
 
     /**
