@@ -179,7 +179,7 @@ it('can handle thinking', function (): void {
     FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-with-reasoning');
 
     $response = Prism::text()
-        ->using('bedrock', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
+        ->using('bedrock', 'us.anthropic.claude-sonnet-4-20250514-v1:0')
         ->withProviderOptions([
             'apiSchema' => BedrockSchema::Converse,
             'additionalModelRequestFields' => [
@@ -223,7 +223,7 @@ describe('citations', function (): void {
         FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-with-citations');
 
         $response = Prism::text()
-            ->using('bedrock', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
+            ->using('bedrock', 'us.anthropic.claude-sonnet-4-20250514-v1:0')
             ->withMessages([
                 (new UserMessage(
                     content: 'What is the answer to life?',
@@ -298,7 +298,7 @@ describe('citations', function (): void {
         );
 
         $response = Prism::text()
-            ->using('bedrock', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
+            ->using('bedrock', 'us.anthropic.claude-sonnet-4-20250514-v1:0')
             ->withMessages([
                 (new UserMessage(
                     content: 'What is the answer to life?',
