@@ -151,6 +151,7 @@ class FixtureResponse
                 ];
 
                 $response = $client->request($request->method(), $request->url(), $options);
+
                 $stream = $response->getBody();
 
                 // Open file for writing

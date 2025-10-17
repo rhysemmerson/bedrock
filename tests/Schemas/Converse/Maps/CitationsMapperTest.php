@@ -105,6 +105,9 @@ describe('to converse api', function (): void {
                         'title' => 'The Answer To Life',
                     ],
                 ],
+                'content' => [
+                    ['text' => 'The answer is "42".'],
+                ],
             ],
         ];
 
@@ -134,6 +137,9 @@ describe('to converse api', function (): void {
                         'title' => 'The Answer To Life',
                     ],
                 ],
+                'content' => [
+                    ['text' => 'The answer is "42".'],
+                ],
             ],
         ];
 
@@ -161,6 +167,9 @@ describe('to converse api', function (): void {
                     ],
                     'title' => 'The Answer To Life',
                 ]],
+                'content' => [
+                    ['text' => 'The answer is "42".'],
+                ],
             ],
         ];
 

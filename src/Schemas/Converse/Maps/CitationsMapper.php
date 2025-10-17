@@ -21,7 +21,7 @@ class CitationsMapper
         );
 
         return new MessagePartWithCitations(
-            outputText: $contentBlock['text'] ?? '',
+            outputText: implode('', array_map(fn (array $text) => $text['text'] ?? '', $contentBlock['citationsContent']['content'] ?? [])),
             citations: $citations,
         );
     }
@@ -42,6 +42,7 @@ class CitationsMapper
             sourceEndIndex: $indices['end'] ?? null,
         );
     }
+
     public static function mapToConverse(MessagePartWithCitations $part): array
     {
         $citations = array_map(
@@ -52,6 +53,9 @@ class CitationsMapper
         return [
             'citationsContent' => [
                 'citations' => array_filter($citations),
+                'content' => [
+                    ['text' => $part->outputText],
+                ],
             ],
         ];
     }
@@ -84,11 +88,11 @@ class CitationsMapper
         };
 
         $location = $locationKey ? [
-            $locationKey => array_filter([
+            $locationKey => [
                 'documentIndex' => $citation->source,
                 'start' => $citation->sourceStartIndex,
                 'end' => $citation->sourceEndIndex,
-            ]),
+            ],
         ] : [];
 
         return array_filter([

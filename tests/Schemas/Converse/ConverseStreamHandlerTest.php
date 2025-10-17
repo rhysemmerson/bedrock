@@ -9,6 +9,8 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use NumberFormatter;
 use Prism\Bedrock\Enums\BedrockSchema;
+use Prism\Prism\Enums\Citations\CitationSourcePositionType;
+use Prism\Prism\Enums\Citations\CitationSourceType;
 use Prism\Prism\Enums\FinishReason;
 use Prism\Prism\Enums\StreamEventType;
 use Prism\Prism\Facades\Tool;
@@ -233,6 +235,83 @@ describe('citations', function (): void {
                         'enabled' => true,
                     ],
                 ]),
+            ])
+            ->asStream();
+
+        $text = '';
+        $events = [];
+        $citationEvents = [];
+
+        foreach ($response as $event) {
+            $events[] = $event;
+
+            if ($event instanceof TextDeltaEvent) {
+                $text .= $event->delta;
+            }
+
+            if ($event instanceof CitationEvent) {
+                $citationEvents[] = $event;
+            }
+        }
+
+        $lastEvent = end($events);
+
+        // Check that citation events were emitted
+        expect($citationEvents)->not->toBeEmpty();
+        expect($citationEvents[0])->toBeInstanceOf(CitationEvent::class);
+        expect($citationEvents[0]->citation)->toBeInstanceOf(Citation::class);
+        expect($citationEvents[0]->messageId)->not->toBeEmpty();
+
+        // Check that the StreamEndEvent contains citations
+        expect($lastEvent)->toBeInstanceOf(StreamEndEvent::class);
+        expect($lastEvent->citations)->toBeArray();
+        expect($lastEvent->citations)->not->toBeEmpty();
+        expect($lastEvent->citations[0])->toBeInstanceOf(MessagePartWithCitations::class);
+        expect($lastEvent->citations[0]->citations[0])->toBeInstanceOf(Citation::class);
+        expect($lastEvent->finishReason)->toBe(FinishReason::Stop);
+    });
+
+    it('can send citation data to model', function (): void {
+        RequestException::dontTruncate();
+        FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-with-previous-citations');
+
+        $messageWithCitation = new AssistantMessage(
+            content: '',
+            additionalContent: [
+                'citations' => [
+                    new MessagePartWithCitations(
+                        outputText: 'The answer to life is 42.',
+                        citations: [
+                            new Citation(
+                                sourceType: CitationSourceType::Document,
+                                source: 0,
+                                sourceText: 'The answer to the ultimate question of life, the universe, and everything is "42".',
+                                sourceTitle: 'The Answer To Life Document',
+                                sourcePositionType: CitationSourcePositionType::Page,
+                                sourceStartIndex: 1,
+                                sourceEndIndex: 2,
+                            ),
+                        ],
+                    ),
+                ],
+            ],
+        );
+
+        $response = Prism::text()
+            ->using('bedrock', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
+            ->withMessages([
+                (new UserMessage(
+                    content: 'What is the answer to life?',
+                    additionalContent: [
+                        Document::fromLocalPath('tests/Fixtures/document.pdf', 'The Answer To Life'),
+                    ]
+                ))->withProviderOptions([
+                    'citations' => [
+                        'enabled' => true,
+                    ],
+                ]),
+                $messageWithCitation,
+                new UserMessage('Can you explain that further?'),
             ])
             ->asStream();
 
