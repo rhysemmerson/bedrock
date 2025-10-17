@@ -176,7 +176,7 @@ it('can handle tool calls', function (): void {
 });
 
 it('can handle thinking', function (): void {
-    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-thinking');
+    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-with-reasoning');
 
     $response = Prism::text()
         ->using('bedrock', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
@@ -209,7 +209,7 @@ it('can handle thinking', function (): void {
             expect($event)->toBeInstanceOf(ThinkingEvent::class);
         });
 
-    expect($thinkingDeltas->count())->toBeGreaterThan(5);
+    expect($thinkingDeltas->count())->toBeGreaterThan(2);
 
     expect($thinkingDeltas->first()->delta)->not->toBeEmpty();
 

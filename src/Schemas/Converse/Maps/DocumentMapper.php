@@ -12,7 +12,8 @@ class DocumentMapper extends ProviderMediaMapper
 {
     /**
      * @param  Document  $media
-     * @param  array<string, mixed>  $cacheControl
+     * @param  array<string, mixed>|null  $cacheControl
+     * @param  array<string, mixed>|null  $citationsConfig
      */
     public function __construct(
         public readonly Media $media,

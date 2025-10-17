@@ -80,7 +80,10 @@ class ConverseStreamHandler
             );
     }
 
-    protected function processStream(Response $response, Request $request, int $depth = 0)
+    /**
+     * @return Generator<StreamEvent>
+     */
+    protected function processStream(Response $response, Request $request, int $depth = 0): Generator
     {
         $this->state->reset();
 
@@ -110,6 +113,10 @@ class ConverseStreamHandler
         }
     }
 
+    /**
+     * @param  array<int, ToolCall>  $toolCalls
+     * @return Generator<StreamEvent>
+     */
     protected function handleToolCalls(Request $request, array $toolCalls, int $depth): Generator
     {
         $toolResults = [];
@@ -215,6 +222,9 @@ class ConverseStreamHandler
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $event
+     */
     protected function processEvent(array $event): null|StreamEvent|Generator
     {
         $json = json_decode((string) $event['payload'], true);
@@ -231,9 +241,13 @@ class ConverseStreamHandler
             'modelStreamErrorException',
             'serviceUnavailableException',
             'validationException' => $this->handleError($json),
+            default => null,
         };
     }
 
+    /**
+     * @param  array<string, mixed>  $event
+     */
     protected function handleContentBlockStart(array $event): ?StreamEvent
     {
         $blockType = (bool) data_get($event, 'start.toolUse')
@@ -260,6 +274,9 @@ class ConverseStreamHandler
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $event
+     */
     protected function handleContentBlockDelta(array $event): null|StreamEvent|Generator
     {
         $this->state->withBlockIndex($event['contentBlockIndex']);
@@ -274,6 +291,9 @@ class ConverseStreamHandler
         };
     }
 
+    /**
+     * @param  array<string, mixed>  $event
+     */
     protected function handleContentBlockStop(array $event): ?StreamEvent
     {
         $result = match ($this->state->currentBlockType()) {
@@ -296,6 +316,9 @@ class ConverseStreamHandler
         return $result;
     }
 
+    /**
+     * @param  array<string, mixed>  $event
+     */
     protected function handleMessageStart(array $event): StreamStartEvent
     {
         $this->state
@@ -309,17 +332,23 @@ class ConverseStreamHandler
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $event
+     */
     protected function handleMessageStop(array $event): void
     {
         $this->state->withFinishReason(FinishReasonMap::map(data_get($event, 'stopReason')));
     }
 
+    /**
+     * @param  array<string, mixed>  $event
+     */
     protected function handleMetadata(array $event): StreamEndEvent
     {
         return new StreamEndEvent(
             id: EventID::generate(),
             timestamp: time(),
-            finishReason: $this->state->finishReason(),
+            finishReason: $this->state->finishReason() ?? throw new PrismException('Finish reason not set'),
             usage: new Usage(
                 promptTokens: data_get($event, 'usage.inputTokens', 0),
                 completionTokens: data_get($event, 'usage.outputTokens', 0),
@@ -335,8 +364,9 @@ class ConverseStreamHandler
      */
     protected function handleToolUseStart(array $contentBlock): null
     {
-        if ($this->state->currentBlockType() !== null) {
-            $this->state->addToolCall($this->state->currentBlockIndex(), [
+        $blockIndex = $this->state->currentBlockIndex();
+        if ($this->state->currentBlockType() !== null && $blockIndex !== null) {
+            $this->state->addToolCall($blockIndex, [
                 'id' => $contentBlock['id'] ?? EventID::generate(),
                 'name' => $contentBlock['name'] ?? 'unknown',
                 'input' => '',
@@ -346,6 +376,10 @@ class ConverseStreamHandler
         return null;
     }
 
+    /**
+     * @param  array<string, mixed>  $event
+     * @return never
+     */
     protected function handleError(array $event)
     {
         if ($event[':headers']['event-type'] === 'throttlingException') {
@@ -358,9 +392,6 @@ class ConverseStreamHandler
         ));
     }
 
-    /**
-     * @param  array<string, mixed>  $delta
-     */
     protected function handleTextDelta(string $text): ?TextDeltaEvent
     {
         if ($text === '') {
@@ -378,7 +409,7 @@ class ConverseStreamHandler
     }
 
     /**
-     * @param  array<string, mixed>  $delta
+     * @param  array<string, mixed>  $citationData
      */
     protected function handleCitationDelta(array $citationData): CitationEvent
     {
@@ -403,12 +434,16 @@ class ConverseStreamHandler
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $reasoningContent
+     * @return Generator<StreamEvent>
+     */
     protected function handleReasoningContentDelta(array $reasoningContent): Generator
     {
         $thinking = $reasoningContent['text'] ?? '';
 
         if ($thinking === '') {
-            return null;
+            return;
         }
 
         $this->state->withBlockType('thinking');
@@ -434,7 +469,7 @@ class ConverseStreamHandler
     }
 
     /**
-     * @param  array<string, mixed>  $event
+     * @param  array<string, mixed>  $toolUse
      */
     protected function handleToolUseDelta(array $toolUse): null
     {
@@ -451,7 +486,12 @@ class ConverseStreamHandler
 
     protected function handleToolUseComplete(): ?ToolCallEvent
     {
-        $toolCall = $this->state->toolCalls()[$this->state->currentBlockIndex()];
+        $blockIndex = $this->state->currentBlockIndex();
+        if ($blockIndex === null) {
+            return null;
+        }
+
+        $toolCall = $this->state->toolCalls()[$blockIndex];
         $input = $toolCall['input'];
 
         // Parse the JSON input

@@ -150,6 +150,10 @@ class MessageMap
         ], $parts);
     }
 
+    /**
+     * @param  array<int, MessagePartWithCitations>  $parts
+     * @return array<int, array<string, mixed>>
+     */
     protected static function mapCitations(array $parts): array
     {
         return array_map(
@@ -172,6 +176,7 @@ class MessageMap
 
     /**
      * @param  Document[]  $parts
+     * @param  array<string, mixed>  $providerOptions
      * @return array<string,array<string,mixed>>
      */
     protected static function mapDocumentParts(array $parts, array $providerOptions = []): array

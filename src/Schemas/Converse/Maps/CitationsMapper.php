@@ -9,6 +9,9 @@ use Prism\Prism\ValueObjects\MessagePartWithCitations;
 
 class CitationsMapper
 {
+    /**
+     * @param  array<string, mixed>  $contentBlock
+     */
     public static function mapFromConverse(array $contentBlock): ?MessagePartWithCitations
     {
         if (! isset($contentBlock['citationsContent']['citations'])) {
@@ -26,6 +29,9 @@ class CitationsMapper
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $citationData
+     */
     public static function mapCitationFromConverse(array $citationData): Citation
     {
         $location = $citationData['location'] ?? [];
@@ -43,6 +49,9 @@ class CitationsMapper
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public static function mapToConverse(MessagePartWithCitations $part): array
     {
         $citations = array_map(
@@ -60,6 +69,9 @@ class CitationsMapper
         ];
     }
 
+    /**
+     * @param  array<int, array<string, mixed>>  $citationData
+     */
     protected static function mapSourceText(array $citationData): ?string
     {
         return implode("\n", array_map(
@@ -68,6 +80,9 @@ class CitationsMapper
         ));
     }
 
+    /**
+     * @param  array<string, mixed>  $location
+     */
     protected static function mapSourcePositionType(array $location): ?CitationSourcePositionType
     {
         return match (array_keys($location)[0] ?? null) {
@@ -78,7 +93,10 @@ class CitationsMapper
         };
     }
 
-    private static function mapCitationToConverse(Citation $citation): array
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function mapCitationToConverse(Citation $citation): array
     {
         $locationKey = match ($citation->sourcePositionType) {
             CitationSourcePositionType::Character => 'documentChar',
