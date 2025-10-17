@@ -16,7 +16,8 @@ class DocumentMapper extends ProviderMediaMapper
      */
     public function __construct(
         public readonly Media $media,
-        public ?array $cacheControl = null
+        public ?array $cacheControl = null,
+        public ?array $citationsConfig = null,
     ) {}
 
     /**
@@ -29,6 +30,7 @@ class DocumentMapper extends ProviderMediaMapper
                 'format' => $this->media->mimeType() ? Mimes::tryFrom($this->media->mimeType())?->toExtension() : null,
                 'name' => $this->media->documentTitle(),
                 'source' => ['bytes' => $this->media->base64()],
+                ...($this->citationsConfig ? ['citations' => $this->citationsConfig] : []),
             ],
         ];
     }

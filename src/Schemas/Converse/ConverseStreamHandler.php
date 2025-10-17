@@ -8,6 +8,7 @@ use Generator;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Prism\Bedrock\Bedrock;
+use Prism\Bedrock\Schemas\Converse\Maps\CitationsMapper;
 use Prism\Bedrock\Schemas\Converse\Maps\FinishReasonMap;
 use Prism\Bedrock\ValueObjects\ConverseStreamState;
 use Prism\Prism\Concerns\CallsTools;
@@ -27,6 +28,7 @@ use Prism\Prism\Streaming\Events\ThinkingStartEvent;
 use Prism\Prism\Streaming\Events\ToolCallEvent;
 use Prism\Prism\Streaming\Events\ToolResultEvent;
 use Prism\Prism\Text\Request;
+use Prism\Prism\ValueObjects\MessagePartWithCitations;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
 use Prism\Prism\ValueObjects\Messages\ToolResultMessage;
 use Prism\Prism\ValueObjects\ToolCall;
@@ -323,7 +325,8 @@ class ConverseStreamHandler
                 completionTokens: data_get($event, 'usage.outputTokens', 0),
                 cacheWriteInputTokens: data_get($event, 'usage.cacheWriteInputTokens', 0),
                 cacheReadInputTokens: data_get($event, 'usage.cacheReadInputTokens', 0),
-            )
+            ),
+            citations: $this->state->citations() !== [] ? $this->state->citations() : null
         );
     }
 
@@ -377,9 +380,27 @@ class ConverseStreamHandler
     /**
      * @param  array<string, mixed>  $delta
      */
-    protected function handleCitationDelta(array $citation): ?CitationEvent
+    protected function handleCitationDelta(array $citationData): CitationEvent
     {
-        throw new \RuntimeException('Citations not yet supported in Bedrock Converse');
+        // Map citation data using CitationsMapper
+        $citation = CitationsMapper::mapCitationFromConverse($citationData);
+
+        // Create MessagePartWithCitations for aggregation
+        $messagePartWithCitations = new MessagePartWithCitations(
+            outputText: $this->state->currentText(),
+            citations: [$citation]
+        );
+
+        // Store for later aggregation
+        $this->state->addCitation($messagePartWithCitations);
+
+        return new CitationEvent(
+            id: EventID::generate(),
+            timestamp: time(),
+            citation: $citation,
+            messageId: $this->state->messageId(),
+            blockIndex: $this->state->currentBlockIndex()
+        );
     }
 
     protected function handleReasoningContentDelta(array $reasoningContent): Generator

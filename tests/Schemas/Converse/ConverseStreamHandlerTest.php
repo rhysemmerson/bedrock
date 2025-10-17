@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Schemas\Converse;
 
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use NumberFormatter;
 use Prism\Bedrock\Enums\BedrockSchema;
@@ -12,6 +13,7 @@ use Prism\Prism\Enums\FinishReason;
 use Prism\Prism\Enums\StreamEventType;
 use Prism\Prism\Facades\Tool;
 use Prism\Prism\Prism;
+use Prism\Prism\Streaming\Events\CitationEvent;
 use Prism\Prism\Streaming\Events\StreamEndEvent;
 use Prism\Prism\Streaming\Events\StreamEvent;
 use Prism\Prism\Streaming\Events\TextDeltaEvent;
@@ -20,6 +22,9 @@ use Prism\Prism\Streaming\Events\ThinkingEvent;
 use Prism\Prism\Streaming\Events\ThinkingStartEvent;
 use Prism\Prism\Streaming\Events\ToolCallEvent;
 use Prism\Prism\Streaming\Events\ToolResultEvent;
+use Prism\Prism\ValueObjects\Citation;
+use Prism\Prism\ValueObjects\Media\Document;
+use Prism\Prism\ValueObjects\MessagePartWithCitations;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
 use Prism\Prism\ValueObjects\Messages\SystemMessage;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
@@ -169,7 +174,7 @@ it('can handle tool calls', function (): void {
 });
 
 it('can handle thinking', function (): void {
-    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-thinking-1');
+    FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-thinking');
 
     $response = Prism::text()
         ->using('bedrock', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
@@ -208,4 +213,59 @@ it('can handle thinking', function (): void {
 
     expect($events->where(fn ($event): bool => $event->type() === StreamEventType::ThinkingComplete)->sole())
         ->toBeInstanceOf(ThinkingCompleteEvent::class);
+});
+
+describe('citations', function (): void {
+    it('emits CitationEvent and includes citations in StreamEndEvent', function (): void {
+        RequestException::dontTruncate();
+        FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-with-citations');
+
+        $response = Prism::text()
+            ->using('bedrock', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
+            ->withMessages([
+                (new UserMessage(
+                    content: 'What is the answer to life?',
+                    additionalContent: [
+                        Document::fromLocalPath('tests/Fixtures/document.pdf', 'The Answer To Life'),
+                    ]
+                ))->withProviderOptions([
+                    'citations' => [
+                        'enabled' => true,
+                    ],
+                ]),
+            ])
+            ->asStream();
+
+        $text = '';
+        $events = [];
+        $citationEvents = [];
+
+        foreach ($response as $event) {
+            $events[] = $event;
+
+            if ($event instanceof TextDeltaEvent) {
+                $text .= $event->delta;
+            }
+
+            if ($event instanceof CitationEvent) {
+                $citationEvents[] = $event;
+            }
+        }
+
+        $lastEvent = end($events);
+
+        // Check that citation events were emitted
+        expect($citationEvents)->not->toBeEmpty();
+        expect($citationEvents[0])->toBeInstanceOf(CitationEvent::class);
+        expect($citationEvents[0]->citation)->toBeInstanceOf(Citation::class);
+        expect($citationEvents[0]->messageId)->not->toBeEmpty();
+
+        // Check that the StreamEndEvent contains citations
+        expect($lastEvent)->toBeInstanceOf(StreamEndEvent::class);
+        expect($lastEvent->citations)->toBeArray();
+        expect($lastEvent->citations)->not->toBeEmpty();
+        expect($lastEvent->citations[0])->toBeInstanceOf(MessagePartWithCitations::class);
+        expect($lastEvent->citations[0]->citations[0])->toBeInstanceOf(Citation::class);
+        expect($lastEvent->finishReason)->toBe(FinishReason::Stop);
+    });
 });

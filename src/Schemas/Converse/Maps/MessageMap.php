@@ -110,7 +110,7 @@ class MessageMap
             'content' => array_filter([
                 ['text' => $message->text()],
                 ...self::mapImageParts($message->images()),
-                ...self::mapDocumentParts($message->documents()),
+                ...self::mapDocumentParts($message->documents(), $message->providerOptions()),
                 $cacheType ? ['cachePoint' => ['type' => $cacheType]] : null,
             ]),
         ];
@@ -164,10 +164,13 @@ class MessageMap
      * @param  Document[]  $parts
      * @return array<string,array<string,mixed>>
      */
-    protected static function mapDocumentParts(array $parts): array
+    protected static function mapDocumentParts(array $parts, array $providerOptions = []): array
     {
         return array_map(
-            fn (Document $document): array => (new DocumentMapper($document))->toPayload(),
+            fn (Document $document): array => (new DocumentMapper(
+                media: $document,
+                citationsConfig: data_get($providerOptions, 'citations', null)
+            ))->toPayload(),
             $parts
         );
     }
