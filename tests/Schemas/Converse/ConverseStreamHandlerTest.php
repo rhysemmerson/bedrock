@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Schemas\Converse;
 
 use Illuminate\Http\Client\Request;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use NumberFormatter;
 use Prism\Bedrock\Enums\BedrockSchema;
@@ -218,7 +217,6 @@ it('can handle thinking', function (): void {
 
 describe('citations', function (): void {
     it('emits CitationEvent and includes citations in StreamEndEvent', function (): void {
-        RequestException::dontTruncate();
         FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-with-citations');
 
         $response = Prism::text()
@@ -271,7 +269,6 @@ describe('citations', function (): void {
     });
 
     it('can send citation data to model', function (): void {
-        RequestException::dontTruncate();
         FixtureResponse::fakeStreamResponses('converse-stream', 'converse/stream-with-previous-citations');
 
         $messageWithCitation = new AssistantMessage(
