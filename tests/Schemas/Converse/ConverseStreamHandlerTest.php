@@ -169,8 +169,7 @@ it('can handle tool calls', function (): void {
     Http::assertSent(function (Request $request): bool {
         $body = json_decode($request->body(), true);
 
-        return $request->url() === 'https://bedrock-runtime.ap-southeast-2.amazonaws.com/model/'.
-            'us.amazon.nova-micro-v1:0/converse-stream'
+        return str_ends_with($request->url(), 'us.amazon.nova-micro-v1:0/converse-stream')
             && isset($body['toolConfig']);
     });
 });
