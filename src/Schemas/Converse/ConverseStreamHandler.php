@@ -282,11 +282,11 @@ class ConverseStreamHandler
         $this->state->withBlockIndex($event['contentBlockIndex']);
         $delta = $event['delta'];
 
-        return match (true) {
-            array_key_exists('text', $delta) => $this->handleTextDelta($delta['text']),
-            array_key_exists('citation', $delta) => $this->handleCitationDelta($delta['citation']),
-            array_key_exists('reasoningContent', $delta) => $this->handleReasoningContentDelta($delta['reasoningContent']),
-            array_key_exists('toolUse', $delta) => $this->handleToolUseDelta($delta['toolUse']),
+        return match (array_keys($delta)[0] ?? null) {
+            'text' => $this->handleTextDelta($delta['text']),
+            'citation' => $this->handleCitationDelta($delta['citation']),
+            'reasoningContent' => $this->handleReasoningContentDelta($delta['reasoningContent']),
+            'toolUse' => $this->handleToolUseDelta($delta['toolUse']),
             default => null,
         };
     }
