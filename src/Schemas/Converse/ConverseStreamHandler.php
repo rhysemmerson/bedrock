@@ -228,6 +228,7 @@ class ConverseStreamHandler
     protected function handleContentBlockDelta(array $chunk): ?\Prism\Prism\Text\Chunk
     {
         if ($text = data_get($chunk, 'delta.text')) {
+            $this->state->appendText($text);
             return new Chunk(
                 text: $text,
                 additionalContent: [
@@ -339,7 +340,7 @@ class ConverseStreamHandler
     protected function handleMetadata(array $chunk): \Prism\Prism\Text\Chunk
     {
         return new Chunk(
-            text: $this->state->text(),
+            text: '',
             finishReason: FinishReasonMap::map($this->state->stopReason()),
             meta: new Meta(
                 id: $this->state->requestId(),
