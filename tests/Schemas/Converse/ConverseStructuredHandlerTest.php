@@ -31,7 +31,7 @@ it('returns structured output', function (): void {
 
     $response = Prism::structured()
         ->withSchema($schema)
-        ->using('bedrock', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
+        ->using('bedrock', 'anthropic.claude-3-5-haiku-20241022-v1:0')
         ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
         ->withSystemPrompt('The tigers game is at 3pm and the temperature will be 70º')
         ->withPrompt('What time is the tigers game today and should I wear a coat?')
