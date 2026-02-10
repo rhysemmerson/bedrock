@@ -36,7 +36,9 @@ class ConverseStructuredHandler extends BedrockStructuredHandler
     #[\Override]
     public function handle(Request $request): StructuredResponse
     {
-        $this->appendMessageForJsonMode($request);
+        if (! $request->providerOptions('validated_schema')) {
+            $this->appendMessageForJsonMode($request);
+        }
 
         $this->sendRequest($request);
 
@@ -82,6 +84,21 @@ class ConverseStructuredHandler extends BedrockStructuredHandler
             'promptVariables' => $request->providerOptions('promptVariables'),
             'requestMetadata' => $request->providerOptions('requestMetadata'),
             'system' => MessageMap::mapSystemMessages($request->systemPrompts()),
+            ...($request->providerOptions('validated_schema')
+                ? [
+                    'outputConfig' => [
+                        'textFormat' => [
+                            'type' => 'json_schema',
+                            'structure' => [
+                                'jsonSchema' => [
+                                    'schema' => json_encode($request->schema()->toArray()),
+                                    'name' => $request->schema()->name(),
+                                    'description' => 'The output schema',
+                                ],
+                            ],
+                        ],
+                    ],
+                ] : []),
         ]);
     }
 

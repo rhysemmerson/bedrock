@@ -31,7 +31,7 @@ it('returns structured output', function (): void {
 
     $response = Prism::structured()
         ->withSchema($schema)
-        ->using('bedrock', 'anthropic.claude-3-5-haiku-20241022-v1:0')
+        ->using('bedrock', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
         ->withProviderOptions(['apiSchema' => BedrockSchema::Converse])
         ->withSystemPrompt('The tigers game is at 3pm and the temperature will be 70º')
         ->withPrompt('What time is the tigers game today and should I wear a coat?')
@@ -199,4 +199,49 @@ it('does not remove 0 values from payloads', function (): void {
             'temperature' => 0,
         ],
     ])->not()->toHaveKey('guardRailConfig'));
+});
+
+it('uses validated results when flag is set in provider options', function () {
+    FixtureResponse::fakeResponseSequence('converse', 'converse/structured-validated-schema');
+
+    $schema = new ObjectSchema(
+        'output',
+        'the output object',
+        [
+            new StringSchema('weather', 'The weather forecast'),
+            new StringSchema('game_time', 'The tigers game time'),
+            new BooleanSchema('coat_required', 'whether a coat is required'),
+        ],
+        ['weather', 'game_time', 'coat_required']
+    );
+
+    $response = Prism::structured()
+        ->withSchema($schema)
+        ->using('bedrock', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
+        ->withProviderOptions(['apiSchema' => BedrockSchema::Converse, 'validated_schema' => true])
+        ->withSystemPrompt('The tigers game is at 3pm and the temperature will be 70º')
+        ->withPrompt('What time is the tigers game today and should I wear a coat?')
+        ->asStructured();
+
+    expect($response->structured)->toBeArray();
+    expect($response->structured)->toHaveKeys([
+        'weather',
+        'game_time',
+        'coat_required',
+    ]);
+
+    Http::assertSent(fn (Request $request): \Pest\Mixins\Expectation|\Pest\Expectation => expect($request->data())->toMatchArray([
+        'outputConfig' => [
+            'textFormat' => [
+                'type' => 'json_schema',
+                'structure' => [
+                    'jsonSchema' => [
+                        'schema' => json_encode($schema->toArray()),
+                        'name' => $schema->name(),
+                        'description' => 'The output schema',
+                    ],
+                ],
+            ],
+        ],
+    ]));
 });
